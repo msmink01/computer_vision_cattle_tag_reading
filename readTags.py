@@ -1041,7 +1041,7 @@ def read_tags_in_video_to_csv(video_path, cowModelPath, digitModelPath, output_p
     print("Done.")
     
 
-def show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True):
+def show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True, saveFig = None):
     cow_image = cv2.imread(image_path)
     classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath)
     toBeRead = determine_tags_to_be_read(classes, labels, bboxes, scores, drinkingOnly)
@@ -1053,6 +1053,8 @@ def show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True
     
     fig, ax1 = plt.subplots(1, figsize = (16,9))
     ax1.imshow(box_image)
+    if saveFig:
+        fig.savefig(saveFig)
 #     return box_image
 
 def _show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True):
