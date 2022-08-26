@@ -94,7 +94,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--cow_model', required=True, type=str, help="path to cow model to use")
     parser.add_argument('--digit_model', required=True, type=str, help="path to digit model to use")
-    parser.add_argument('--drinking_only', default=True, type=bool, help="include only drinking tags or not")
+    parser.add_argument('--drinking_only', default=False, action='store_true', help="include only drinking tags or not")
     parser.add_argument('--drinking_thresh', default=2, type=float, help="how many seconds can be between detections and still be considered one detection")
     parser.add_argument('--output', type=str, help="csv file to output to")
 
