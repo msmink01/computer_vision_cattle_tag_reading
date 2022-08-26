@@ -20,7 +20,7 @@ This project uses a two-step computer vision pathway to detect and read cattle e
 2. Some kind of package manager such as anaconda or miniconda (instructions for installing miniconda are below)
 3. Python modules including: torch, torchvision, pandas, matplotlib, nltk, jupyter, lmdb, natsort, and open cv (instructions for installing these packages on miniconda are below)
 4. Custom model pth files. Please email me for these (msmink01@gmail.com).
-5. Input files: images, videos, and/or a webcam. Examples of images, directories of images, and videos can be found in the *inputs* directory
+5. Input files: images, videos, and/or a webcam. Examples of images, directories of images, and videos can be found in the *sample_inputs* directory
 
 <br />**Installing miniconda**: \[2]
 - Go to the [Miniconda Downloads](https://docs.conda.io/en/latest/miniconda.html#windows-installers) page. Download the appropriate (32- or 64-Bit) Python 3.X version of Miniconda.
@@ -97,6 +97,8 @@ At the end of the player a dataframe will be printed to the terminal representin
 ```
 To output the dataframe to a csv add argument ``--output path/to/csv/to/be/created`` <br />
 To only detect the tags of drinking cattle add argument ``--drinking_only`` <br />
+  
+**Sample output csv files can be seen in the *sample_outputs* folder.**
 ***
 ### References
 [1] [J. Baek, G. Kim, J. Lee, S. Park, D. Han, S. Yun, S. J. Oh, and H. Lee. What Is Wrong With Scene Text Recognition Model Comparisons? Dataset and Model Analysis. International Conference on Computer Vision (ICCV). 2019.](https://github.com/clovaai/deep-text-recognition-benchmark)\
