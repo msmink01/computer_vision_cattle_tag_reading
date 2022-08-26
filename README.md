@@ -19,7 +19,7 @@ This project uses a two-step computer vision pathway to detect and read cattle e
 1. [Python](https://www.python.org/downloads/): we used Python Version 3.10.4
 2. Some kind of package manager such as anaconda or miniconda (instructions for installing miniconda are below)
 3. Python modules including: torch, torchvision, pandas, matplotlib, nltk, jupyter, lmdb, natsort, and open cv (instructions for installing these packages on miniconda are below)
-4. Custom model pth files. Please email me for these (msmink01@gmail.com).
+4. Custom model pth files. Please email me for these (msmink01 AT gmail DOT com).
 5. Input files: images, videos, and/or a webcam. Examples of images, directories of images, and videos can be found in the *sample_inputs* directory
 
 <br />**Installing miniconda**: \[2]
