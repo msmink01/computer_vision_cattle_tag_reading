@@ -2,7 +2,7 @@
 This project uses a two-step computer vision pathway to detect and read cattle ear tags:
 - **Step 1**: use a custom **FasterRCNN** model to locate cattle ear tags and drinking cattle.
 - **Step 2**: use a fine-tuned **TRBA** (TPS-ResNet-BiLSTM-Attn) model to read the selected ear tags (either of only drinking or all cattle). [1]
-<img src="./figures/example.png" width="500" title="example">
+<img src="./figures/example.png" width="650" title="example">
 
 ### Current Possibilities
 | Input type | Possible output type | Place to look for example code usage |
