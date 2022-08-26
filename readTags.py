@@ -637,6 +637,9 @@ def multiple_images(opt, toBeReadDict, doPrint):
                     pred = pred[:pred_EOS]  # prune after "end of sentence" token ([s])
                     pred_max_prob = pred_max_prob[:pred_EOS]
 
+                if pred_max_prob.numel() == 0:
+                    # print("SKIPPING", pred, pred_max_prob)
+                    continue
                 # calculate confidence score (= multiply of pred_max_prob)
                 confidence_score = pred_max_prob.cumprod(dim=0)[-1]
 
