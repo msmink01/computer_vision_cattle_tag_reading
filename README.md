@@ -9,8 +9,8 @@ This project uses a two-step computer vision pathway to detect and read cattle e
 | --- | --- | --- |
 | Singular image | Dictionary, dataframe, csv, plt figure, png/jpg | *readTagsDemo.ipynb* |
 | Directory of images | Dictionary, dataframe, csv, plt figures | *readTagsDemo.ipynb* |
-| Video | Dictionary, raw dataframe, raw csv, cleaned dataframe, cleaned csv | *readTagsDemo.ipynb* |
-| Webcam | Raw dataframe, raw csv | *app.py* |
+| Video | Dictionary, raw dataframe, raw csv, cleaned dataframe, cleaned csv, opencv frame video | *readTagsDemo.ipynb*, *app_video.py* |
+| Webcam | Raw dataframe, raw csv, opencv frame video | *app_webcam.py* |
 
 
 ***
@@ -43,6 +43,58 @@ This project uses a two-step computer vision pathway to detect and read cattle e
 - Check whether the installation was successful: run ``python`` in the terminal to start interactive python mode. Then: ``import torch, torchvision, lmdb, natsort, cv2, pandas, numpy, matplotlib, nltk``. If the installation was successful no error messages should appear. Type ``exit()`` to exit interactive mode.
   
 <br />**After these requirements are met and every package can be imported in a jupyter notebook, proceed to the Usage section.**<br />
+***
+## Using the code base
+Please see readTagsDemo.ipynb to see examples of how to use the functions in readTags.py to read tags from singular images, directories of images, and videos.<br />
+### Using app_video.py
+To see just a frame by frame reading of a video:<br />
+  ```
+  python app_video.py --input path/to/video --cow_model path/to/cow/model --digit_model path/to/digit/model
+  ```
+  A frame by frame video will appear with the readings. To stop the player early hit 'q'. <br />
+  At the end of the player a dataframe will be printed to the terminal representing all of the tag readings while the player was active. Example: <br />
+  ```
+      tagNames  tagIndexOfOccurrence  averageTextConfidence  averageDrinkingConfidence  timeStart    timeEnd              
+  0       2099                     0               0.992070                   0.596295   0.000000   3.500000              
+  1       2099                     1               0.978054                   0.519436   7.800000  11.233333              
+  2         81                     0               0.943550                   0.000000   0.100000   0.566667              
+  3         81                     1               0.994500                   0.000000   3.400000   3.400000              
+  4         81                     2               0.980000                   0.000000   8.900000  10.033333              
+  ..       ...                   ...                    ...                        ...        ...        ...              
+  111       85                     0               0.480800                   0.000000  10.866667  10.866667              
+  112       18                     0               0.632400                   0.000000  11.000000  11.000000              
+  113      166                     0               0.433750                   0.000000  11.033333  11.166667              
+  114       10                     0               0.219500                   0.000000  11.200000  11.200000              
+  115      616                     0               0.557500                   0.000000  11.233333  11.233333
+[116 rows x 6 columns]
+```
+To skip every X frames while reading the video add argument ``--skip X`` <br />
+To output the dataframe to a csv add argument ``--output path/to/csv/to/be/created`` <br />
+To only detect the tags of drinking cattle add argument ``--drinking_only`` <br />
+### Using app_webcam.py
+To see just the reading of your webcam:<br />
+```
+python app_webcam.py --cow_model path/to/cow/model --digit_model path/to/digit/model
+```
+OpenCV frames will appear with the readings. To stop the webcam early hit 'q'. <br />
+At the end of the player a dataframe will be printed to the terminal representing all of the tag readings while the webcam was active. Example: <br />
+```
+     tagNames  tagIndexOfOccurrence  averageTextConfidence  averageDrinkingConfidence  timeStart    timeEnd              
+0       2099                     0               0.992070                   0.596295   0.000000   3.500000              
+1       2099                     1               0.978054                   0.519436   7.800000  11.233333              
+2         81                     0               0.943550                   0.000000   0.100000   0.566667              
+3         81                     1               0.994500                   0.000000   3.400000   3.400000              
+4         81                     2               0.980000                   0.000000   8.900000  10.033333              
+..       ...                   ...                    ...                        ...        ...        ...              
+111       85                     0               0.480800                   0.000000  10.866667  10.866667              
+112       18                     0               0.632400                   0.000000  11.000000  11.000000              
+113      166                     0               0.433750                   0.000000  11.033333  11.166667              
+114       10                     0               0.219500                   0.000000  11.200000  11.200000              
+115      616                     0               0.557500                   0.000000  11.233333  11.233333
+[116 rows x 6 columns]
+```
+To output the dataframe to a csv add argument ``--output path/to/csv/to/be/created`` <br />
+To only detect the tags of drinking cattle add argument ``--drinking_only`` <br />
 ***
 ### References
 [1] [J. Baek, G. Kim, J. Lee, S. Park, D. Han, S. Yun, S. J. Oh, and H. Lee. What Is Wrong With Scene Text Recognition Model Comparisons? Dataset and Model Analysis. International Conference on Computer Vision (ICCV). 2019.](https://github.com/clovaai/deep-text-recognition-benchmark)\
