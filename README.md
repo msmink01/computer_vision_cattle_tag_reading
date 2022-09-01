@@ -42,6 +42,7 @@ This project uses a two-step computer vision pathway to detect and read cattle e
   - ``conda install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit==11.3.1 -c pytorch``
   - ``conda install jupyter``
   - ``conda install natsort opencv``
+  - For GPU support make sure to add: ``conda install cuda -c nvidia``
 - Check whether the installation was successful: run ``python`` in the terminal to start interactive python mode. Then: ``import torch, torchvision, lmdb, natsort, cv2, pandas, numpy, matplotlib, nltk``. If the installation was successful no error messages should appear. Type ``exit()`` to exit interactive mode.
   
 <br />**After these requirements are met and every package can be imported in a jupyter notebook, proceed to the Usage section.**<br />
