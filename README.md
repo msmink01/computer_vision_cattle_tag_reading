@@ -1,6 +1,6 @@
 # Reading Cattle Ear Tags and Drinking Behaviour with Computer Vision
 This project uses a two-step computer vision pathway to detect and read cattle ear tags:
-- **Step 1**: use a custom **FasterRCNN** model to locate cattle ear tags and drinking cattle.
+- **Step 1**: use custom **FasterRCNN** and **Tiny Yolov5** models to locate cattle ear tags and drinking cattle.
 - **Step 2**: use a fine-tuned **TRBA** (TPS-ResNet-BiLSTM-Attn) model to read the selected ear tags (either of only drinking or all cattle). [1]
 <img src="./figures/example.png" width="650" title="example">
 
@@ -19,8 +19,9 @@ This project uses a two-step computer vision pathway to detect and read cattle e
 1. [Python](https://www.python.org/downloads/): we used Python Version 3.10.4
 2. Some kind of package manager such as anaconda or miniconda (instructions for installing miniconda are below)
 3. Python modules including: torch, torchvision, pandas, matplotlib, nltk, jupyter, lmdb, natsort, and open cv (instructions for installing these packages on miniconda are below)
-4. Custom model pth files. Please email me for these (msmink01 AT gmail DOT com).
+4. Custom model pth/pt files. Please email me for these (msmink01 AT gmail DOT com).
 5. Input files: images, videos, and/or a webcam. Examples of images, directories of images, and videos can be found in the *sample_inputs* directory
+6. Depending on whether you want to use a Yolov5 or FasterRCNN detection model you may want to consider cloning the [ultralytics yolov5 github directory](https://github.com/ultralytics/yolov5).
 
 <br />**Installing miniconda**: \[2]
 - Go to the [Miniconda Downloads](https://docs.conda.io/en/latest/miniconda.html#windows-installers) page. Download the appropriate (32- or 64-Bit) Python 3.X version of Miniconda.
@@ -42,6 +43,7 @@ This project uses a two-step computer vision pathway to detect and read cattle e
   - ``conda install torch==1.11.0 torchvision==0.12.0 torchaudio==0.11.0 cudatoolkit==11.3.1 -c pytorch``
   - ``conda install jupyter``
   - ``conda install natsort opencv``
+  - if using yolov5, import all of their required packages from their ``requirements.txt`` file in their git repository.
 - Check whether the installation was successful: run ``python`` in the terminal to start interactive python mode. Then: ``import torch, torchvision, lmdb, natsort, cv2, pandas, numpy, matplotlib, nltk``. If the installation was successful no error messages should appear. Type ``exit()`` to exit interactive mode.
   
 <br />**After these requirements are met and every package can be imported in a jupyter notebook, proceed to the Usage section.**<br />
@@ -51,7 +53,7 @@ This project uses a two-step computer vision pathway to detect and read cattle e
 ### Using *app_video.py*
 To see a frame by frame reading of a video:<br />
   ```
-  python app_video.py --input path/to/video --cow_model path/to/cow/model --digit_model path/to/digit/model
+  python app_video.py --input path/to/video --cow_model path/to/cow/model --digit_model path/to/digit/model (--yolo if using yolov5 model; nothing otherwise)
   ```
   A frame by frame video will appear with the readings. To stop the player early hit 'q'. <br />
   At the end of the player a dataframe will be printed to the terminal representing all of the tag readings while the player was active. "tagNames" is what the digit model predicted as the value of the tag. "tagIndexOfOccurrence" represents the index of how many times that tag has appeared in the video. "averageTextConfidence" is the average confidence the digit model had for this tag value throughout the frames where this tag was read. "averageDrinkingConfidence" is the average confidence the cow model had for whether this tag belonged to a drinking cow (0 if cow was never drinking). "timeStart" is when this tag first appeared in seconds since the start of the video. "timeEnd" is when this tag last appeared in seconds since the start of the video. Example: <br />
@@ -76,7 +78,7 @@ To only detect the tags of drinking cattle add argument ``--drinking_only`` <br 
 ### Using *app_webcam.py*
 To see just the reading of your webcam in real time:<br />
 ```
-python app_webcam.py --cow_model path/to/cow/model --digit_model path/to/digit/model
+python app_webcam.py --cow_model path/to/cow/model --digit_model path/to/digit/model (--yolo if using yolov5 model; nothing otherwise)
 ```
 OpenCV frames will appear with the readings. To stop the webcam early hit 'q'. <br />
 At the end of the player a dataframe will be printed to the terminal representing all of the tag readings while the webcam was active. "tagNames" is what the digit model predicted as the value of the tag. "tagIndexOfOccurrence" represents the index of how many times that tag had appeared during the open webcam. "averageTextConfidence" is the average confidence the digit model had for this tag value throughout the frames where this tag was read. "averageDrinkingConfidence" is the average confidence the cow model had for whether this tag belonged to a drinking cow (0 if cow was never drinking). "timeStart" is when this tag first appeared in seconds since the webcam was turned on. "timeEnd" is when this tag last appeared in seconds since the webcam was first turned on. Example: <br />
@@ -103,4 +105,5 @@ To only detect the tags of drinking cattle add argument ``--drinking_only`` <br 
 ### References
 [1] [J. Baek, G. Kim, J. Lee, S. Park, D. Han, S. Yun, S. J. Oh, and H. Lee. What Is Wrong With Scene Text Recognition Model Comparisons? Dataset and Model Analysis. International Conference on Computer Vision (ICCV). 2019.](https://github.com/clovaai/deep-text-recognition-benchmark)\
 [2] [Codecademy Team. Setting up Jupyter Notebook.](https://www.codecademy.com/article/setting-up-jupyter-notebook#heading-windows-miniconda)\
-[3] [S.R. Rath. Custom Object Detection using PyTorch Faster RCNN. Oct, 25th 2021.](https://debuggercafe.com/custom-object-detection-using-pytorch-faster-rcnn/)
+[3] [S.R. Rath. Custom Object Detection using PyTorch Faster RCNN. Oct, 25th 2021.](https://debuggercafe.com/custom-object-detection-using-pytorch-faster-rcnn/)\
+[4] [Yolov5 v6.2 by Ultralytics](https://github.com/ultralytics/yolov5)
