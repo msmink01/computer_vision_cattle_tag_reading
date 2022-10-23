@@ -6,7 +6,7 @@ import torch.backends.cudnn as cudnn
 import torch.utils.data
 import torch.nn.functional as F
 
-from utils import CTCLabelConverter, AttnLabelConverter
+from extrautils import CTCLabelConverter, AttnLabelConverter
 from dataset import RawDataset, AlignCollate, PredictedImage, PredictedImages, PredictedVideoBatch, PredictedWebcamImage
 from model import Model
 
@@ -17,6 +17,7 @@ import os
 import datetime
 from PIL import Image
 import matplotlib.pyplot as plt
+import matplotlib
 
 import torchvision
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
@@ -26,6 +27,7 @@ from difflib import SequenceMatcher
 CLASSES = [
     'background', 'far', 'near', 'drinking'
 ]
+YOLO_CLASSES = ['near', 'far', 'drinking']
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')   
 
@@ -56,30 +58,52 @@ def create_cow_model(cowModelPath):
     cow_model.eval()
     return cow_model
 
-def get_cow_predictions(image_path, cowModelPath):
-    global device, CLASSES
-    cow_model = create_cow_model(cowModelPath)
-    
-    cow_image = cv2.imread(image_path)
-    image_width = cow_image.shape[1]
-    image_height = cow_image.shape[0]
-    orig_img = cow_image.copy()
-    # BGR to RGB
-    cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
-    # make the pixel range between 0 and 1
-    cow_image /= 255.0
-    cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
-    cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
-    # add batch dimension
-    cow_image = torch.unsqueeze(cow_image, 0)
-    
-    with torch.no_grad():
-        outputs = cow_model(cow_image)
-    
-    pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
-    pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
-    pred_scores = outputs[0]['scores'].detach().cpu().numpy()
-    pred_labels = outputs[0]['labels'].detach().cpu().numpy()
+def create_cow_model_yolo(cowModelPath):
+    cow_model = torch.hub.load("yolov5", "custom", cowModelPath, source="local").to(device)
+    return cow_model
+
+def get_cow_predictions(image_path, cowModelPath, yolo=True):
+    global device, CLASSES, YOLO_CLASSES
+    if yolo:
+        cow_model = create_cow_model_yolo(cowModelPath)
+        imgs = [Image.open(image_path)]
+        results = cow_model(imgs)
+        
+        out = results.xyxy[0]
+        #print(out)
+        #print(out[:, 5].cpu().numpy())
+        #for i in out[:, 5].cpu().numpy():
+        #    print(i)
+        pred_classes = [YOLO_CLASSES[int(i)] for i in out[:, 5].cpu().numpy()]
+        pred_bboxes = out[:, :4].detach().cpu().numpy()
+        pred_scores = out[:, 4].detach().cpu().numpy()
+        pred_labels = out[:, 5].detach().cpu().numpy()
+        # print(pred_classes, pred_bboxes, pred_scores, pred_labels)
+    else:
+        
+        cow_model = create_cow_model(cowModelPath)
+
+        cow_image = cv2.imread(image_path)
+        image_width = cow_image.shape[1]
+        image_height = cow_image.shape[0]
+        orig_img = cow_image.copy()
+        # BGR to RGB
+        cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
+        # make the pixel range between 0 and 1
+        cow_image /= 255.0
+        cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
+        cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
+        # add batch dimension
+        cow_image = torch.unsqueeze(cow_image, 0)
+
+        with torch.no_grad():
+            outputs = cow_model(cow_image)
+
+        pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
+        pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
+        pred_scores = outputs[0]['scores'].detach().cpu().numpy()
+        pred_labels = outputs[0]['labels'].detach().cpu().numpy()
+        #print(pred_classes, pred_bboxes, pred_scores, pred_labels)
 
     numOfPreds = len(pred_classes)
     for i in reversed(range(numOfPreds)):
@@ -91,8 +115,11 @@ def get_cow_predictions(image_path, cowModelPath):
             
     return pred_classes, pred_labels, pred_bboxes, pred_scores
 
-def get_cow_predictions_video(capture, cowModelPath, skipFrames=16):
-    cow_model = create_cow_model(cowModelPath)
+def get_cow_predictions_video(capture, cowModelPath, yolo, skipFrames=16):
+    if yolo:
+        cow_model = create_cow_model_yolo(cowModelPath)
+    else:
+        cow_model = create_cow_model(cowModelPath)
     global device, CLASSES
     
     if (capture.isOpened() == False):
@@ -114,40 +141,69 @@ def get_cow_predictions_video(capture, cowModelPath, skipFrames=16):
             if frame_number >= capture.get(cv2.CAP_PROP_FRAME_COUNT):
                 break
             
-        
-            cow_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32)
-            cow_image /= 255.0
-            cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
-            cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
-            # add batch dimension
-            cow_image = torch.unsqueeze(cow_image, 0)
+            if yolo:
+                cow_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                cow_image = Image.fromarray(cow_image)
+            else:
+                cow_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB).astype(np.float32)
+                cow_image /= 255.0
+                cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
+                cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
+                # add batch dimension
+                cow_image = torch.unsqueeze(cow_image, 0)
     
             frames.append(cow_image)
             frame_numbers.append(frame_number)
         
-        frames = torch.cat(frames, axis=0)
-    
-        with torch.no_grad():
-            outputs = cow_model(frames)
+        toReturn = dict()    
         
-        toReturn = dict()
-        for i in range(len(outputs)):
-            out = outputs[i]
-            fnum = frame_numbers[i]
-            pred_classes = [CLASSES[i] for i in out['labels'].cpu().numpy()]
-            pred_bboxes = out['boxes'].detach().cpu().numpy()
-            pred_scores = out['scores'].detach().cpu().numpy()
-            pred_labels = out['labels'].detach().cpu().numpy()
-
-            numOfPreds = len(pred_classes)
-            for i in reversed(range(numOfPreds)):
-                if pred_scores[i] < cow_threshold:
-                    pred_scores = np.delete(pred_scores,i)
-                    pred_bboxes = np.delete(pred_bboxes,i, axis=0)
-                    pred_classes.pop(i)
-                    pred_labels = np.delete(pred_labels,i)
+        if yolo:
+            results = cow_model(frames)
+            outputs = results.xyxy
+            
+            for i in range(len(outputs)):
+                out = outputs[i]
+                fnum = frame_numbers[i]
+                pred_classes = [YOLO_CLASSES[int(j)] for j in out[:, 5].cpu().numpy()]
+                pred_bboxes = out[:, :4].detach().cpu().numpy()
+                pred_scores = out[:, 4].detach().cpu().numpy()
+                pred_labels = out[:, 5].detach().cpu().numpy()
                 
-            toReturn[fnum] = (pred_classes, pred_labels, pred_bboxes, pred_scores)
+                numOfPreds = len(pred_classes)
+                for i in reversed(range(numOfPreds)):
+                    if pred_scores[i] < cow_threshold:
+                        pred_scores = np.delete(pred_scores,i)
+                        pred_bboxes = np.delete(pred_bboxes,i, axis=0)
+                        pred_classes.pop(i)
+                        pred_labels = np.delete(pred_labels,i)
+                
+                toReturn[fnum] = (pred_classes, pred_labels, pred_bboxes, pred_scores)
+                
+        else:
+        
+            frames = torch.cat(frames, axis=0)
+    
+            with torch.no_grad():
+                outputs = cow_model(frames)
+        
+        
+            for i in range(len(outputs)):
+                out = outputs[i]
+                fnum = frame_numbers[i]
+                pred_classes = [CLASSES[i] for i in out['labels'].cpu().numpy()]
+                pred_bboxes = out['boxes'].detach().cpu().numpy()
+                pred_scores = out['scores'].detach().cpu().numpy()
+                pred_labels = out['labels'].detach().cpu().numpy()
+
+                numOfPreds = len(pred_classes)
+                for i in reversed(range(numOfPreds)):
+                    if pred_scores[i] < cow_threshold:
+                        pred_scores = np.delete(pred_scores,i)
+                        pred_bboxes = np.delete(pred_bboxes,i, axis=0)
+                        pred_classes.pop(i)
+                        pred_labels = np.delete(pred_labels,i)
+                
+                toReturn[fnum] = (pred_classes, pred_labels, pred_bboxes, pred_scores)
         
         oldFrame = frame_number
         yield toReturn
@@ -158,28 +214,41 @@ def get_cow_predictions_video(capture, cowModelPath, skipFrames=16):
             break
                 
                 
-def get_cow_predictions_webcam_image(frame, cow_model):
-    global device, CLASSES
+def get_cow_predictions_webcam_image(frame, cow_model, yolo):
+    global device, CLASSES, YOLOCLASSES
     
-    image_width = frame.shape[1]
-    image_height = frame.shape[0]
-    orig_img = frame.copy()
-    # BGR to RGB
-    cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
-    # make the pixel range between 0 and 1
-    cow_image /= 255.0
-    cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
-    cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
-    # add batch dimension
-    cow_image = torch.unsqueeze(cow_image, 0)
-    
-    with torch.no_grad():
-        outputs = cow_model(cow_image)
-    
-    pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
-    pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
-    pred_scores = outputs[0]['scores'].detach().cpu().numpy()
-    pred_labels = outputs[0]['labels'].detach().cpu().numpy()
+    if yolo:
+        cow_image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        imgs = [Image.fromarray(cow_image)]
+        results = cow_model(imgs)
+        out = results.xyxy[0]
+        
+        pred_classes = [YOLO_CLASSES[int(i)] for i in out[:, 5].cpu().numpy()]
+        pred_bboxes = out[:, :4].detach().cpu().numpy()
+        pred_scores = out[:, 4].detach().cpu().numpy()
+        pred_labels = out[:, 5].detach().cpu().numpy()
+        
+    else:
+
+        image_width = frame.shape[1]
+        image_height = frame.shape[0]
+        orig_img = frame.copy()
+        # BGR to RGB
+        cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
+        # make the pixel range between 0 and 1
+        cow_image /= 255.0
+        cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
+        cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
+        # add batch dimension
+        cow_image = torch.unsqueeze(cow_image, 0)
+
+        with torch.no_grad():
+            outputs = cow_model(cow_image)
+
+        pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
+        pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
+        pred_scores = outputs[0]['scores'].detach().cpu().numpy()
+        pred_labels = outputs[0]['labels'].detach().cpu().numpy()
 
     numOfPreds = len(pred_classes)
     for i in reversed(range(numOfPreds)):
@@ -191,35 +260,55 @@ def get_cow_predictions_webcam_image(frame, cow_model):
             
     return pred_classes, pred_labels, pred_bboxes, pred_scores
 
-def get_cow_predictions_dir(dir_path, cowModelPath):
+def get_cow_predictions_dir(dir_path, cowModelPath, yolo):
     outcomes = dict()
-    global device, CLASSES
-    cow_model = create_cow_model(cowModelPath)
+    global device, CLASSES, YOLO_CLASSES
+    
     
     l = os.listdir(dir_path)
     l = list(filter(lambda x: "jpg" in x or "png" in x or "jpeg" in x, l))
     
+    if yolo:
+        cow_model = create_cow_model_yolo(cowModelPath)
+    else:
+        cow_model = create_cow_model(cowModelPath)
+        
     for image_path in l:
-        cow_image = cv2.imread(dir_path + "/" + image_path)
-        image_width = cow_image.shape[1]
-        image_height = cow_image.shape[0]
-        orig_img = cow_image.copy()
-        # BGR to RGB
-        cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
-        # make the pixel range between 0 and 1
-        cow_image /= 255.0
-        cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
-        cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
-        # add batch dimension
-        cow_image = torch.unsqueeze(cow_image, 0)
-    
-        with torch.no_grad():
-            outputs = cow_model(cow_image)
-    
-        pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
-        pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
-        pred_scores = outputs[0]['scores'].detach().cpu().numpy()
-        pred_labels = outputs[0]['labels'].detach().cpu().numpy()
+        if yolo:
+            imgs = [Image.open(os.path.join(dir_path, image_path))]
+            results = cow_model(imgs)
+
+            out = results.xyxy[0]
+            #print(out)
+            #print(out[:, 5].cpu().numpy())
+            #for i in out[:, 5].cpu().numpy():
+            #    print(i)
+            pred_classes = [YOLO_CLASSES[int(i)] for i in out[:, 5].cpu().numpy()]
+            pred_bboxes = out[:, :4].detach().cpu().numpy()
+            pred_scores = out[:, 4].detach().cpu().numpy()
+            pred_labels = out[:, 5].detach().cpu().numpy()
+            # print(pred_classes, pred_bboxes, pred_scores, pred_labels)
+        else:
+            cow_image = cv2.imread(dir_path + "/" + image_path)
+            image_width = cow_image.shape[1]
+            image_height = cow_image.shape[0]
+            orig_img = cow_image.copy()
+            # BGR to RGB
+            cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
+            # make the pixel range between 0 and 1
+            cow_image /= 255.0
+            cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
+            cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
+            # add batch dimension
+            cow_image = torch.unsqueeze(cow_image, 0)
+
+            with torch.no_grad():
+                outputs = cow_model(cow_image)
+
+            pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
+            pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
+            pred_scores = outputs[0]['scores'].detach().cpu().numpy()
+            pred_labels = outputs[0]['labels'].detach().cpu().numpy()
 
         numOfPreds = len(pred_classes)
         for i in reversed(range(numOfPreds)):
@@ -243,7 +332,7 @@ def draw_boxes(boxes, classes, labels, scores, image, tag_indexes=None, preds=No
     # read the image with OpenCV
     image = cv2.cvtColor(np.asarray(image), cv2.COLOR_BGR2RGB)
     for i, box in enumerate(boxes):
-        color = COLORS[labels[i]]
+        color = COLORS[int(labels[i])]
         cv2.rectangle(
             image,
             (int(box[0]), int(box[1])),
@@ -260,29 +349,54 @@ def draw_boxes(boxes, classes, labels, scores, image, tag_indexes=None, preds=No
                     lineType=cv2.LINE_AA)
     return image
     
-def show_cow_predictions(image_path, cowModelPath):
-    global device, CLASSES
-    cow_model = create_cow_model(cowModelPath)
+    
+    
+    
+    
+def show_cow_predictions(image_path, cowModelPath, yolo=True):
+    global device, CLASSES, YOLO_CLASSES
     cow_image = cv2.imread(image_path)
-    image_width = cow_image.shape[1]
-    image_height = cow_image.shape[0]
     orig_img = cow_image.copy()
-    # BGR to RGB
-    cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
-    # make the pixel range between 0 and 1
-    cow_image /= 255.0
-    cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
-    cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
-    # add batch dimension
-    cow_image = torch.unsqueeze(cow_image, 0)
-    
-    with torch.no_grad():
-        outputs = cow_model(cow_image)
-    
-    pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
-    pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
-    pred_scores = outputs[0]['scores'].detach().cpu().numpy()
-    pred_labels = outputs[0]['labels'].detach().cpu().numpy()
+    if yolo:
+        cow_model = create_cow_model_yolo(cowModelPath)
+        imgs = [Image.open(image_path)]
+        results = cow_model(imgs)
+        
+        out = results.xyxy[0]
+        #print(out)
+        #print(out[:, 5].cpu().numpy())
+        #for i in out[:, 5].cpu().numpy():
+        #    print(i)
+        pred_classes = [YOLO_CLASSES[int(i)] for i in out[:, 5].cpu().numpy()]
+        pred_bboxes = out[:, :4].detach().cpu().numpy()
+        pred_scores = out[:, 4].detach().cpu().numpy()
+        pred_labels = out[:, 5].detach().cpu().numpy()
+        # print(pred_classes, pred_bboxes, pred_scores, pred_labels)
+    else:
+        
+        cow_model = create_cow_model(cowModelPath)
+
+        #cow_image = cv2.imread(image_path)
+        image_width = cow_image.shape[1]
+        image_height = cow_image.shape[0]
+        #orig_img = cow_image.copy()
+        # BGR to RGB
+        cow_image = cv2.cvtColor(orig_img, cv2.COLOR_BGR2RGB).astype(np.float32)
+        # make the pixel range between 0 and 1
+        cow_image /= 255.0
+        cow_image = np.transpose(cow_image, (2, 0, 1)).astype(np.float32)
+        cow_image = torch.tensor(cow_image, dtype=torch.float).cuda()
+        # add batch dimension
+        cow_image = torch.unsqueeze(cow_image, 0)
+
+        with torch.no_grad():
+            outputs = cow_model(cow_image)
+
+        pred_classes = [CLASSES[i] for i in outputs[0]['labels'].cpu().numpy()]
+        pred_bboxes = outputs[0]['boxes'].detach().cpu().numpy()
+        pred_scores = outputs[0]['scores'].detach().cpu().numpy()
+        pred_labels = outputs[0]['labels'].detach().cpu().numpy()
+        #print(pred_classes, pred_bboxes, pred_scores, pred_labels)
 
     numOfPreds = len(pred_classes)
     for i in reversed(range(numOfPreds)):
@@ -293,9 +407,13 @@ def show_cow_predictions(image_path, cowModelPath):
             pred_labels = np.delete(pred_labels,i)
     
     box_image = draw_boxes(pred_bboxes, pred_classes, pred_labels, pred_scores, orig_img)
-    
+    #print(box_image)
+    #print(type(box_image))
+    #matplotlib.use( 'tkagg' )
+    #print(matplotlib.get_backend())
     fig, ax1 = plt.subplots(1, figsize = (16,9))
-    ax1.imshow(box_image)    
+    ax1.imshow(box_image)
+    #fig.show()
 
 def IoU(drinkingArray, nearArray):
     # compute intersection piece
@@ -782,8 +900,8 @@ class Options_single_image():
         self.num_gpu = torch.cuda.device_count()
 
     
-def read_tags_in_image(image_path, cowModelPath, digitModelPath, drinkingOnly=True):
-    classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath)
+def read_tags_in_image(image_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True):
+    classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath, yolo)
     toBeRead = determine_tags_to_be_read(classes, labels, bboxes, scores, drinkingOnly)
     opt = Options_single_image(image_path, digitModelPath)
     tag_indexes, preds, confs = single_img(opt, toBeRead, False)
@@ -794,8 +912,8 @@ def read_tags_in_image(image_path, cowModelPath, digitModelPath, drinkingOnly=Tr
         
     return outcome  
     
-def read_tags_in_webcam_image(frame, cow_model, digitModelPath, drinkingOnly=True):
-    classes, labels, bboxes, scores = get_cow_predictions_webcam_image(frame, cow_model)
+def read_tags_in_webcam_image(frame, cow_model, digitModelPath, drinkingOnly=True, yolo=True):
+    classes, labels, bboxes, scores = get_cow_predictions_webcam_image(frame, cow_model, yolo)
     toBeRead = determine_tags_to_be_read(classes, labels, bboxes, scores, drinkingOnly)
     #print(toBeRead)
     opt = Options_single_image(None, digitModelPath)
@@ -809,8 +927,8 @@ def read_tags_in_webcam_image(frame, cow_model, digitModelPath, drinkingOnly=Tru
     
     return outcome, box_image
 
-def read_tags_in_dir(dir_path, cowModelPath, digitModelPath, drinkingOnly=True):
-    outcomes = get_cow_predictions_dir(dir_path, cowModelPath)
+def read_tags_in_dir(dir_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True):
+    outcomes = get_cow_predictions_dir(dir_path, cowModelPath, yolo)
     toBeReadDict = dict()
     for img_key in outcomes:
         toBeReadDict[img_key] = determine_tags_to_be_read(outcomes[img_key][0], outcomes[img_key][1], outcomes[img_key][2], outcomes[img_key][3], drinkingOnly)
@@ -829,8 +947,8 @@ def read_tags_in_dir(dir_path, cowModelPath, digitModelPath, drinkingOnly=True):
     return outcome  
     
     
-def read_tags_in_dir_to_df(dir_path, cowModelPath, digitModelPath, drinkingOnly=True):
-    outcomes = get_cow_predictions_dir(dir_path, cowModelPath)
+def read_tags_in_dir_to_df(dir_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True):
+    outcomes = get_cow_predictions_dir(dir_path, cowModelPath, yolo)
     toBeReadDict = dict()
     for img_key in outcomes:
         toBeReadDict[img_key] = determine_tags_to_be_read(outcomes[img_key][0], outcomes[img_key][1], outcomes[img_key][2], outcomes[img_key][3], drinkingOnly)
@@ -876,20 +994,20 @@ def read_tags_in_dir_to_df(dir_path, cowModelPath, digitModelPath, drinkingOnly=
     return pd.DataFrame({"imgNames": imgNames, "tagIndexWithinImage": tagIndexWithinImage, "x0" : x0, "y0": y0, "x1": x1, "y1": y1, "tagConfidence": tagConfidence, "isDrinking": isDrinking, "predictedText": predictedText, "textConfidence": textConfidence})  
     
     
-def read_tags_in_dir_to_csv(dir_path, cowModelPath, digitModelPath, output_path, drinkingOnly=True):
-    df = read_tags_in_dir_to_df(dir_path, cowModelPath, digitModelPath, drinkingOnly)
+def read_tags_in_dir_to_csv(dir_path, cowModelPath, digitModelPath, output_path, drinkingOnly=True,  yolo=True):
+    df = read_tags_in_dir_to_df(dir_path, cowModelPath, digitModelPath, drinkingOnly, yolo)
     df.to_csv(output_path)
     print("Done.")
     
     
-def read_tags_in_video(video_path, cowModelPath, digitModelPath, drinkingOnly=True, skipFrames=16, drinkingThresh=2):
+def read_tags_in_video(video_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True, skipFrames=16, drinkingThresh=2):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     mod_time = os.path.getmtime(video_path)
     
     outcome = dict()
     largeToBeRead = dict()
-    for batch in get_cow_predictions_video(cap, cowModelPath, skipFrames):
+    for batch in get_cow_predictions_video(cap, cowModelPath, yolo, skipFrames):
         #print(batch)
         toBeReadDict = dict()
         for fnum in batch:
@@ -949,14 +1067,14 @@ def read_tags_in_video(video_path, cowModelPath, digitModelPath, drinkingOnly=Tr
 
 
 
-def read_tags_in_video_to_df(video_path, cowModelPath, digitModelPath, drinkingOnly=True, skipFrames=16, drinkingThresh=2):
+def read_tags_in_video_to_df(video_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True, skipFrames=16, drinkingThresh=2):
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS)
     mod_time = os.path.getmtime(video_path)
     
     outcome = dict()
     largeToBeRead = dict()
-    for batch in get_cow_predictions_video(cap, cowModelPath, skipFrames):
+    for batch in get_cow_predictions_video(cap, cowModelPath, yolo, skipFrames):
         #print(batch)
         toBeReadDict = dict()
         for fnum in batch:
@@ -1038,15 +1156,15 @@ def read_tags_in_video_to_df(video_path, cowModelPath, digitModelPath, drinkingO
     return pd.DataFrame({"tagNames": tagNames, "tagIndexOfOccurrence": tagIndexOfOccurrence, "averageTextConfidence": averageTextConfidence, "averageDrinkingConfidence": averageDrinkingConfidence, "timeStart": timeStart, "timeEnd": timeEnd, "dateStart": dateStart, "dateEnd": dateEnd})  
 
 
-def read_tags_in_video_to_csv(video_path, cowModelPath, digitModelPath, output_path, drinkingOnly=True, skipFrames=16, drinkingThresh=2):
-    df = read_tags_in_video_to_df(video_path, cowModelPath, digitModelPath, drinkingOnly, skipFrames, drinkingThresh)
+def read_tags_in_video_to_csv(video_path, cowModelPath, digitModelPath, output_path, drinkingOnly=True, yolo=True, skipFrames=16, drinkingThresh=2):
+    df = read_tags_in_video_to_df(video_path, cowModelPath, digitModelPath, drinkingOnly, yolo, skipFrames, drinkingThresh)
     df.to_csv(output_path)
     print("Done.")
     
 
-def show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True, saveFig = None):
+def show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True, saveFig = None):
     cow_image = cv2.imread(image_path)
-    classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath)
+    classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath, yolo)
     toBeRead = determine_tags_to_be_read(classes, labels, bboxes, scores, drinkingOnly)
     opt = Options_single_image(image_path, digitModelPath)
     tag_indexes, preds, confs = single_img(opt, toBeRead, False)
@@ -1060,9 +1178,9 @@ def show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True
         fig.savefig(saveFig)
 #     return box_image
 
-def _show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True):
+def _show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True):
     cow_image = cv2.imread(image_path)
-    classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath)
+    classes, labels, bboxes, scores = get_cow_predictions(image_path, cowModelPath, yolo)
     toBeRead = determine_tags_to_be_read(classes, labels, bboxes, scores, drinkingOnly)
     opt = Options_single_image(image_path, digitModelPath)
     tag_indexes, preds, confs = single_img(opt, toBeRead, False)
@@ -1071,7 +1189,7 @@ def _show_tags_in_img(image_path, cowModelPath, digitModelPath, drinkingOnly=Tru
     
     return box_image
 
-def show_tags_in_dir(dir_path, cowModelPath, digitModelPath, drinkingOnly=True):
+def show_tags_in_dir(dir_path, cowModelPath, digitModelPath, drinkingOnly=True, yolo=True):
     l = os.listdir(dir_path)
     l = list(filter(lambda x: "jpg" in x or "jpeg" in x or "png" in x, l))
     #print(l)
@@ -1083,11 +1201,11 @@ def show_tags_in_dir(dir_path, cowModelPath, digitModelPath, drinkingOnly=True):
     if len(l) >= 4:
         for i in range(4):
             image_path = l[i]
-            boxImgs.append(_show_tags_in_img(dir_path + "/" + image_path, cowModelPath, digitModelPath, drinkingOnly))
+            boxImgs.append(_show_tags_in_img(dir_path + "/" + image_path, cowModelPath, digitModelPath, drinkingOnly, yolo))
     else:
         for i in range(len(l)):
             image_path = l[i]
-            boxImgs.append(_show_tags_in_img(dir_path + "/" + image_path, cowModelPath, digitModelPath, drinkingOnly))
+            boxImgs.append(_show_tags_in_img(dir_path + "/" + image_path, cowModelPath, digitModelPath, drinkingOnly, yolo))
             
     fig, ax = plt.subplots(4, figsize=(16, 32))
     if len(boxImgs) >= 1:

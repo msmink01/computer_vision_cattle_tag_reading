@@ -2,14 +2,17 @@ import cv2
 import argparse
 import time
 import pandas as pd
-from readTags import read_tags_in_webcam_image, create_cow_model
+from readTags import read_tags_in_webcam_image, create_cow_model, create_cow_model_yolo
 
 
 def cam(args):
     cap = cv2.VideoCapture(0)
 
     outputs = dict()
-    cow_model = create_cow_model(args.cow_model)
+    if args.yolo:
+        cow_model = create_cow_model_yolo(args.cow_model)
+    else:
+        cow_model = create_cow_model(args.cow_model)
     
     frame_number = 0
     start_time = time.time()
@@ -19,7 +22,7 @@ def cam(args):
         frame_number += 1
         
         
-        out, box_image = read_tags_in_webcam_image(frame, cow_model, args.digit_model, args.drinking_only)
+        out, box_image = read_tags_in_webcam_image(frame, cow_model, args.digit_model, args.drinking_only, args.yolo)
         if out:
             outputs[frame_number] = (frame_time, out)
         
@@ -96,6 +99,7 @@ if __name__ == "__main__":
     parser.add_argument('--digit_model', required=True, type=str, help="path to digit model to use")
     parser.add_argument('--drinking_only', default=False, action='store_true', help="include only drinking tags or not")
     parser.add_argument('--drinking_thresh', default=2, type=float, help="how many seconds can be between detections and still be considered one detection")
+    parser.add_argument('--yolo', default=False, action='store_true', help="using a yolo model or not")
     parser.add_argument('--output', type=str, help="csv file to output to")
 
     stuff = parser.parse_args()
